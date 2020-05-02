@@ -1,6 +1,6 @@
 module BNBKnapsack
 
-    using LinearAlgebra
+using LinearAlgebra
     using JuMP, CPLEX
     import Base.print
 
@@ -228,7 +228,7 @@ module BNBKnapsack
         print("\n")
     end
 
-    function execute(p::Problem)
+    function execute(p::BNB_knapsack.Problem)
         global problem = p
 
         println("\n=====================\n")
@@ -315,6 +315,6 @@ module BNBKnapsack
         end
         print(status)
         println("\n\n")
-        return 0
     end
+    
 end # module
