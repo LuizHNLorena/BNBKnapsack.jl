@@ -1,6 +1,6 @@
 module BNBKnapsack
 
-using LinearAlgebra
+    using LinearAlgebra
     using JuMP, CPLEX
     import Base.print
 
@@ -56,12 +56,16 @@ using LinearAlgebra
 
     function gap(status::BBStatus)
         # Will return NaN if no integer-feasible solution is found.
-        return (status.upper_bound - status.lower_bound) / status.upper_bound
+        gap = (status.upper_bound - status.lower_bound) / status.upper_bound
+        if isnan(gap)
+            gap = Inf
+        end
+        return gap
     end
 
     function is_pruned(node::BBNode, status::BBStatus; quiet::Bool = true)
-        if node.lp_feasibility != :Optimal
-            if !quiet && node.variable != 0                 # If not the root
+        if node.lp_feasibility == :UnfeasibleSolution
+            if !quiet
                 println("Node pruned by infeasibility.")
             end
             return true, :Feasibility
@@ -86,7 +90,7 @@ using LinearAlgebra
                 return nothing
             end
             if length(node.children) == 0
-                println("self no children: $node")
+                println("self no children: $(node.variable)")
                 return node
             end
             # Binary variables: two children or zero, no other case.
@@ -151,10 +155,25 @@ using LinearAlgebra
 
     function create_node(parent::BBNode, new_variable::Int, value::Int)
         lp, vars = branch_lp(parent, new_variable, value)
-        lp_feasibility = optimize!(lp)
-        lp_value = JuMP.objective_value(lp)
-        lp_solution = JuMP.value.(vars)
-        int_feas = solution_is_boolean(lp_solution)
+        lp_status = optimize!(lp)           #lp_feasibility = optimize!(lp)
+
+        println(lp)
+
+        lp_feasibility = :UnfeasibleSolution
+        if termination_status(lp) == MOI.OPTIMAL
+            lp_feasibility = :FeasibleSolution
+        end
+
+        lp_value = NaN
+        lp_solution = []
+        int_feas = false
+
+        if lp_feasibility == :FeasibleSolution
+            lp_value = JuMP.objective_value(lp)
+            lp_solution = JuMP.value.(vars)
+            int_feas = solution_is_boolean(lp_solution)
+        end
+
         return BBNode(parent, [], new_variable, value, lp_value, lp_feasibility, lp_solution, int_feas)
     end
 
@@ -228,16 +247,23 @@ using LinearAlgebra
         print("\n")
     end
 
-    function execute(p::BNB_knapsack.Problem)
+    function execute(p::Problem)
         global problem = p
 
         println("\n=====================\n")
 
         root_lp, root_vars = get_lp()
-        root_feasibility = optimize!(root_lp)
+        #root_feasibility = optimize!(root_lp)
+        root_status = optimize!(root_lp)
 
-        if root_feasibility != :Optimal
+        root_feasibility = :UnfeasibleSolution
+        if termination_status(root_lp) == MOI.OPTIMAL
+            root_feasibility = :FeasibleSolution
+        end
+
+        if root_feasibility != :FeasibleSolution
             println("Root node could not be solved to optimality: $root_feasibility")
+            exit(0)
         end
 
         root_solution = JuMP.value.(root_vars)
@@ -307,6 +333,7 @@ using LinearAlgebra
                 status.lower_bound = right.lp_value
                 status.incumbent = round_solution(right.solution)
             end
+
             status.upper_bound = get_upper_bound(status)
 
             # End iteration.
@@ -314,7 +341,7 @@ using LinearAlgebra
 
         end
         print(status)
-        println("\n\n")
+        println("\n")
     end
-    
+
 end # module
