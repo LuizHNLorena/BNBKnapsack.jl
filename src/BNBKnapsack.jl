@@ -14,7 +14,6 @@ module BNBKnapsack
     end
 
     problem = nothing
-    a = nothing
 
     mutable struct BBNode
         # Tree structure.
